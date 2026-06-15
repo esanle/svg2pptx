@@ -301,12 +301,36 @@ def parse_color(color_str: str) -> str:
 
     # Handle light-dark() CSS function - extract the light-mode (first) color
     # e.g. "light-dark(#ffffff, var(--ge-dark-color, #121212))" -> "#ffffff"
+    # Note: the first color may contain nested functions like rgb(0, 0, 0)
+    # We need to find the comma that separates the two arguments, not internal commas
     ld_match = re.match(
-        r"light-dark\s*\(\s*(.+?)\s*,", color_str_stripped, re.IGNORECASE
+        r"light-dark\s*\(\s*", color_str_stripped, re.IGNORECASE
     )
     if ld_match:
-        first_color = ld_match.group(1).strip()
-        return parse_color(first_color)
+        # Find the content after "light-dark("
+        rest = color_str_stripped[ld_match.end():]
+        # Parse the first argument (may be nested rgb(), var(), etc.)
+        # Find the comma that separates first and second arguments
+        paren_depth = 0
+        comma_pos = -1
+        for i, ch in enumerate(rest):
+            if ch == '(':
+                paren_depth += 1
+            elif ch == ')':
+                paren_depth -= 1
+                if paren_depth < 0:
+                    # End of light-dark() - shouldn't happen before comma
+                    break
+            elif ch == ',' and paren_depth == 0:
+                comma_pos = i
+                break
+
+        if comma_pos > 0:
+            first_color = rest[:comma_pos].strip()
+            return parse_color(first_color)
+        else:
+            # Malformed light-dark, try to extract something
+            return "#000000"
 
     # Check for gradient/pattern url() references
     url_match = URL_REF_PATTERN.match(color_str_stripped)
