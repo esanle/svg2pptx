@@ -281,7 +281,8 @@ def parse_color(color_str: str) -> str:
     Parse an SVG/CSS color value.
 
     Args:
-        color_str: Color string (hex, rgb(), named color, url(#gradient), or "none").
+        color_str: Color string (hex, rgb(), named color, url(#gradient),
+            light-dark(), or "none").
 
     Returns:
         Normalized hex color string (e.g., "#ff0000") or "none".
@@ -297,6 +298,15 @@ def parse_color(color_str: str) -> str:
         return "none"
     if color_str_lower == "currentcolor":
         return "#000000"  # Default to black
+
+    # Handle light-dark() CSS function - extract the light-mode (first) color
+    # e.g. "light-dark(#ffffff, var(--ge-dark-color, #121212))" -> "#ffffff"
+    ld_match = re.match(
+        r"light-dark\s*\(\s*(.+?)\s*,", color_str_stripped, re.IGNORECASE
+    )
+    if ld_match:
+        first_color = ld_match.group(1).strip()
+        return parse_color(first_color)
 
     # Check for gradient/pattern url() references
     url_match = URL_REF_PATTERN.match(color_str_stripped)

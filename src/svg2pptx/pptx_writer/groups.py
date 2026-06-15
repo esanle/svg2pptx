@@ -8,8 +8,10 @@ from pptx.shapes.shapetree import SlideShapes
 from svg2pptx.parser.svg_parser import GroupElement
 from svg2pptx.parser.shapes import ParsedShape
 from svg2pptx.parser.paths import PathShape
+from svg2pptx.parser.images import ImageElement
 from svg2pptx.pptx_writer.shapes import create_shape
 from svg2pptx.pptx_writer.freeform import create_freeform
+from svg2pptx.pptx_writer.images import create_picture
 from svg2pptx.config import Config
 
 
@@ -99,6 +101,9 @@ def add_element_to_shapes(
     elif isinstance(element, TextElement):
         if config.convert_text:
             create_text(shapes, element, offset_x, offset_y, scale)
+    elif isinstance(element, ImageElement):
+        if config.convert_images:
+            create_picture(shapes, element, offset_x, offset_y, scale)
     elif isinstance(element, ParsedShape):
         if config.convert_shapes:
             create_shape(shapes, element, offset_x, offset_y, scale)

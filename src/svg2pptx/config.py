@@ -30,6 +30,7 @@ class Config:
             Defaults to True.
         convert_text: Whether to convert text elements. Defaults to True.
         convert_shapes: Whether to convert shape elements. Defaults to True.
+        convert_images: Whether to convert image elements. Defaults to True.
     """
 
     slide_width: int = Inches(13.333)
@@ -46,4 +47,5 @@ class Config:
     disable_shadows: bool = True
     convert_text: bool = True
     convert_shapes: bool = True
+    convert_images: bool = True
 

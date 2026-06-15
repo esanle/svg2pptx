@@ -7,6 +7,9 @@ from typing import Iterator, Optional, Union
 
 from svg2pptx.parser.shapes import ParsedShape, parse_shape
 from svg2pptx.parser.paths import PathShape, parse_path
+from svg2pptx.parser.elements import TextElement, GroupElement
+from svg2pptx.parser.foreign_object import parse_foreign_object
+from svg2pptx.parser.images import ImageElement, parse_image
 from svg2pptx.parser.styles import (
     Style,
     parse_style,
@@ -68,46 +71,6 @@ class SVGDocument:
         if self.viewbox:
             return -self.viewbox[1] * self.scale_y
         return 0.0
-
-
-@dataclass
-class TextElement:
-    """
-    Parsed SVG text element.
-
-    Attributes:
-        text: Text content.
-        x: X position.
-        y: Y position.
-        style: Text style.
-        transform: Element transform.
-        element_id: Optional element ID.
-    """
-
-    text: str
-    x: float = 0.0
-    y: float = 0.0
-    style: Style = field(default_factory=Style)
-    transform: Transform = field(default_factory=Transform.identity)
-    element_id: Optional[str] = None
-
-
-@dataclass
-class GroupElement:
-    """
-    Parsed SVG group element.
-
-    Attributes:
-        children: List of child elements.
-        style: Group style.
-        transform: Group transform.
-        element_id: Optional element ID.
-    """
-
-    children: list = field(default_factory=list)
-    style: Style = field(default_factory=Style)
-    transform: Transform = field(default_factory=Transform.identity)
-    element_id: Optional[str] = None
 
 
 class SVGParser:
@@ -259,6 +222,22 @@ class SVGParser:
                 element_id=element.get("id"),
             )
 
+        elif tag == "svg":
+            # Nested <svg> element (used by draw.io for icons/arrows with viewBox scaling)
+            # Compute the viewBox -> viewport transform and apply it to children
+            nested_transform = self._compute_nested_svg_transform(
+                element, combined_transform
+            )
+            children = self._parse_children(element, style, nested_transform)
+            if not children:
+                return None
+            return GroupElement(
+                children=children,
+                style=style,
+                transform=nested_transform,
+                element_id=element.get("id"),
+            )
+
         elif tag == "path":
             return parse_path(
                 element,
@@ -273,15 +252,87 @@ class SVGParser:
         elif tag in ("rect", "circle", "ellipse", "line", "polygon", "polyline"):
             return parse_shape(element, parent_style, parent_transform)
 
+        elif tag == "switch":
+            # <switch> contains alternative content (foreignObject + image fallback)
+            # Treat it like a transparent group - parse all children
+            children = self._parse_children(element, style, combined_transform)
+            if not children:
+                return None
+            return GroupElement(
+                children=children,
+                style=style,
+                transform=combined_transform,
+                element_id=element.get("id"),
+            )
+
         elif tag == "use":
             # TODO: Handle <use> elements by resolving references
             return None
 
+        elif tag == "foreignobject":
+            # Parse foreignObject (draw.io text in HTML divs)
+            return parse_foreign_object(element, style, combined_transform)
+
         elif tag == "image":
-            # TODO: Handle embedded images
-            return None
+            # Parse embedded images (base64 data URIs)
+            return parse_image(element, parent_style, parent_transform)
 
         return None
+
+    def _compute_nested_svg_transform(
+        self,
+        element: ET.Element,
+        parent_transform: Transform,
+    ) -> Transform:
+        """
+        Compute the transform for a nested <svg> element.
+
+        A nested SVG establishes its own coordinate system via x, y, width,
+        height and viewBox. The mapping is:
+            translate(x, y) -> scale(w/vbW, h/vbH) -> translate(-vbX, -vbY)
+
+        Args:
+            element: The nested <svg> element.
+            parent_transform: Accumulated transform from ancestor elements.
+
+        Returns:
+            Combined transform to apply to the nested SVG's children.
+        """
+        # Position of the nested SVG in parent coordinates
+        x = self._safe_len(element.get("x", "0"))
+        y = self._safe_len(element.get("y", "0"))
+        width = self._safe_len(element.get("width", "0"))
+        height = self._safe_len(element.get("height", "0"))
+
+        transform = Transform.translate(x, y)
+
+        # If a viewBox is present, scale content to fit the viewport
+        viewbox_attr = element.get("viewBox", "")
+        if viewbox_attr:
+            try:
+                vb = parse_viewbox(viewbox_attr)
+                vb_x, vb_y, vb_w, vb_h = vb
+                if vb_w > 0 and vb_h > 0 and width > 0 and height > 0:
+                    scale = Transform.scale(width / vb_w, height / vb_h)
+                    # Compose: outer.translate then inner.scale
+                    transform = transform.compose(scale)
+                if vb_x != 0 or vb_y != 0:
+                    offset = Transform.translate(-vb_x, -vb_y)
+                    transform = transform.compose(offset)
+            except ValueError:
+                pass
+
+        return parent_transform.compose(transform)
+
+    @staticmethod
+    def _safe_len(value: str) -> float:
+        """Parse a length attribute, returning 0.0 on failure."""
+        if not value:
+            return 0.0
+        try:
+            return parse_length(value)
+        except ValueError:
+            return 0.0
 
     def _parse_text(
         self,
