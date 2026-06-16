@@ -80,14 +80,18 @@ class SVGParser:
     Parses SVG files or strings and extracts shapes, paths, groups, and text.
     """
 
-    def __init__(self, curve_tolerance: float = 1.0):
+    def __init__(self, curve_tolerance: float = 1.0, icons_as_images: bool = False):
         """
         Initialize the SVG parser.
 
         Args:
             curve_tolerance: Tolerance for Bezier curve approximation.
+            icons_as_images: If True, render nested <svg> icons to PNG
+                images instead of vector freeform shapes. This produces
+                crisper icons at the cost of editability.
         """
         self.curve_tolerance = curve_tolerance
+        self.icons_as_images = icons_as_images
 
     def parse_file(self, svg_path: Union[str, Path]) -> SVGDocument:
         """
@@ -224,7 +228,12 @@ class SVGParser:
 
         elif tag == "svg":
             # Nested <svg> element (used by draw.io for icons/arrows with viewBox scaling)
-            # Compute the viewBox -> viewport transform and apply it to children
+            # When icons_as_images is enabled, render the icon to PNG for crisp display
+            if self.icons_as_images:
+                icon_image = self._render_icon_to_image(element, combined_transform)
+                if icon_image is not None:
+                    return icon_image
+            # Fallback: compute the viewBox -> viewport transform and apply to children
             nested_transform = self._compute_nested_svg_transform(
                 element, combined_transform
             )
@@ -333,6 +342,46 @@ class SVGParser:
             return parse_length(value)
         except ValueError:
             return 0.0
+
+    def _render_icon_to_image(
+        self,
+        element: ET.Element,
+        parent_transform: Transform,
+    ):
+        """Render a nested <svg> icon to an ImageElement via PNG.
+
+        Returns an ImageElement positioned correctly, or None on failure.
+        """
+        from svg2pptx.parser.images import ImageElement
+        from svg2pptx.parser.icon_renderer import render_svg_element_to_png
+
+        x = self._safe_len(element.get("x", "0"))
+        y = self._safe_len(element.get("y", "0"))
+        width = self._safe_len(element.get("width", "0"))
+        height = self._safe_len(element.get("height", "0"))
+
+        if width <= 0 or height <= 0:
+            return None
+
+        png_bytes = render_svg_element_to_png(element, width, height, scale=4)
+        if not png_bytes:
+            return None
+
+        # Build transform: translate(x, y) composed with parent transform
+        transform = parent_transform.compose(Transform.translate(x, y))
+
+        return ImageElement(
+            image_bytes=png_bytes,
+            mime_type="png",
+            x=0.0,
+            y=0.0,
+            width=width,
+            height=height,
+            style=Style(),
+            transform=transform,
+            element_id=element.get("id"),
+            source="icon",
+        )
 
     def _parse_text(
         self,

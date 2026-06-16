@@ -102,7 +102,9 @@ def add_element_to_shapes(
         if config.convert_text:
             create_text(shapes, element, offset_x, offset_y, scale)
     elif isinstance(element, ImageElement):
-        if config.convert_images:
+        # Icon images (rendered from nested SVG) are always included;
+        # regular raster images respect the convert_images setting.
+        if element.source == "icon" or config.convert_images:
             create_picture(shapes, element, offset_x, offset_y, scale)
     elif isinstance(element, ParsedShape):
         if config.convert_shapes:

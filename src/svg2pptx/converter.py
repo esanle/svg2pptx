@@ -33,7 +33,10 @@ class SVGConverter:
             config: Optional configuration settings.
         """
         self.config = config or Config()
-        self.parser = SVGParser(curve_tolerance=self.config.curve_tolerance)
+        self.parser = SVGParser(
+            curve_tolerance=self.config.curve_tolerance,
+            icons_as_images=self.config.icons_as_images,
+        )
 
     def convert_file(
         self,

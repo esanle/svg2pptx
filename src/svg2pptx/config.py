@@ -28,9 +28,12 @@ class Config:
         default_stroke_width: Default stroke width in pixels when not specified.
         disable_shadows: Whether to disable shadows on generated shapes.
             Defaults to True.
-        convert_text: Whether to convert text elements. Defaults to True.
+                convert_text: Whether to convert text elements. Defaults to True.
         convert_shapes: Whether to convert shape elements. Defaults to True.
         convert_images: Whether to convert image elements. Defaults to True.
+        icons_as_images: Whether to render nested <svg> icons as PNG images
+            instead of vector shapes. Produces crisper icons for complex
+            draw.io icons. Requires rsvg-convert or cairosvg. Defaults to False.
     """
 
     slide_width: int = Inches(13.333)
@@ -48,4 +51,5 @@ class Config:
     convert_text: bool = True
     convert_shapes: bool = True
     convert_images: bool = True
+    icons_as_images: bool = False
 

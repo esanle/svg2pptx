@@ -139,7 +139,7 @@ def arc_to_lines(
     num_segments = max(
         4, int(math.ceil(arc_length / tolerance))
     )
-    num_segments = min(num_segments, 360)  # Cap at 360 segments
+    num_segments = min(num_segments, 64)  # Cap to avoid freeform render issues
 
     points = []
     for i in range(1, num_segments + 1):
@@ -288,8 +288,10 @@ def svg_arc_to_lines(
 
     avg_radius = (rx + ry) / 2
     arc_length = avg_radius * abs(dtheta)
+    # Use tolerance-based segmentation, but cap segments to avoid excessive
+    # point counts that render poorly in PowerPoint/LibreOffice freeform shapes.
     num_segments = max(4, int(math.ceil(arc_length / tolerance)))
-    num_segments = min(num_segments, 360)
+    num_segments = min(num_segments, 64)
 
     points = []
     for i in range(1, num_segments + 1):

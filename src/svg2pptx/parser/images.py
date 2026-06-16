@@ -53,6 +53,7 @@ class ImageElement:
         transform: Optional[Transform] = None,
         element_id: Optional[str] = None,
         href: Optional[str] = None,
+        source: str = "image",
     ):
         self.image_bytes = image_bytes
         self.mime_type = mime_type
@@ -64,6 +65,8 @@ class ImageElement:
         self.transform = transform or Transform.identity()
         self.element_id = element_id
         self.href = href
+        # 'image' = raster element from the SVG; 'icon' = nested SVG rendered to PNG
+        self.source = source
 
     def __repr__(self) -> str:
         size = len(self.image_bytes) if self.image_bytes else 0
